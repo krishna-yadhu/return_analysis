@@ -66,28 +66,65 @@ def create_bucket_if_not_exists():
         print(f"Bucket already exists: gs://{GCS_BUCKET}\n") 
 
 def upload_to_gcs():
-    print("Uploading CSVs to GCS...")
-
-    # authenticate using service account key
+    print("Checking GCS for existing files...")
     client = storage.Client.from_service_account_json(str(CREDENTIALS))
     bucket = client.bucket(GCS_BUCKET)
 
+    all_exist = all(
+        bucket.blob(f"raw/{filename}").exists()
+        for filename in TABLES.values()
+    )
+
+    if all_exist:
+        print("All files already in GCS, skipping upload...\n")
+        return
+
+    print("Uploading CSVs to GCS...")
     for table, filename in TABLES.items():
         source_path = DATA_DIR / filename
         destination = f"raw/{filename}"
-
         blob = bucket.blob(destination)
-        blob.upload_from_filename(str(source_path))
-        print(f" {filename} → gs://{GCS_BUCKET}/{destination}")
 
+        if blob.exists():
+            print(f"  ⏭️  Skipping {filename} — already in GCS")
+        else:
+            blob.upload_from_filename(str(source_path))
+            print(f"  ✅ {filename} → gs://{GCS_BUCKET}/{destination}")
     print()
 
-def cleanup_local():
+"""def cleanup_local():
     print("Cleaning up local data folder...")
     for file in DATA_DIR.iterdir():
         if file.is_file():
             file.unlink()
             print(f"Deleted {file.name}")
+    print()"""
+
+def create_bruin_assets():
+    print("Creating Bruin raw assets...")
+    
+    assets_dir = Path("./assets/raw")
+    assets_dir.mkdir(parents=True, exist_ok=True)
+
+    for table, filename in TABLES.items():
+        asset_content = f"""name: raw.{table}
+type: ingestr
+connection: bigquery_main
+
+parameters:
+  source_connection: gcs_main
+  source_table: gs://{GCS_BUCKET}/raw/{filename}
+  destination: bigquery_main
+  destination_table: return_analysis_raw.{table}
+"""
+        asset_path = assets_dir / f"{table}.asset.yml"
+        
+        if asset_path.exists():
+            print(f"Skipping {table}.asset.yml — already exists")
+        else:
+            asset_path.write_text(asset_content)
+            print(f"Created assets/raw/{table}.asset.yml")
+    
     print()
 
 if __name__ == "__main__":
@@ -95,9 +132,6 @@ if __name__ == "__main__":
     download_data()
     if verify_files():
         create_bucket_if_not_exists() 
-        upload_to_gcs()
-        cleanup_local()            
-        print("Done! CSVs in GCS, local files cleaned up.")
-    else:
-        print("Some files missing. Check your Kaggle credentials.")
+        uploaded =upload_to_gcs()
+        create_bruin_assets() 
 

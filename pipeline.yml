@@ -1,5 +1,5 @@
 name: return-analysis
-schedule: "@daily"
+schedule: "daily"
 
 default_connections:
   google_cloud_storage: gcs_main
