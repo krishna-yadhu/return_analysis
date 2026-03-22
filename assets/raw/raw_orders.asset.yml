@@ -1,9 +1,0 @@
-name: raw.raw_orders
-type: ingestr
-connection: bigquery_main
-
-parameters:
-  source_connection: gcs_main
-  source_table: gs://return-analysis-data/raw/olist_orders_dataset.csv
-  destination: bigquery_main
-  destination_table: return_analysis_raw.raw_orders

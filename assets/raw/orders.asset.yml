@@ -1,0 +1,9 @@
+name: raw.orders
+type: ingestr
+connection: bigquery_main
+
+parameters:
+  source_connection: gcs_main
+  source_table: gs://return-analysis-data/raw/thelook_orders/*.csv
+  destination: bigquery_main
+  destination_table: return_analysis_raw.orders

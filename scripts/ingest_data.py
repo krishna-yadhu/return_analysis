@@ -1,137 +1,98 @@
-import kaggle
-import duckdb
-import os
-import shutil
 from pathlib import Path
-from google.cloud import storage
+from google.cloud import bigquery, storage
 
-DATA_DIR = Path("./data")
-DB_PATH = DATA_DIR / "pipeline.duckdb"
-DATASET = "olistbr/brazilian-ecommerce"
-GCS_BUCKET   = "return-analysis-data"
-CREDENTIALS  = Path("./credentials/return-analysis-490800-9f8a54f16dfd.json")
+GCS_BUCKET  = "return-analysis-data"
+PROJECT_ID  = "return-analysis-490800"
+CREDENTIALS = Path("./credentials/return-analysis-490800-9f8a54f16dfd.json")
 
-TABLES = {
-    "raw_orders":      "olist_orders_dataset.csv",
-    "raw_order_items": "olist_order_items_dataset.csv",
-    "raw_sellers":     "olist_sellers_dataset.csv",
-    "raw_products":    "olist_products_dataset.csv",
-    "raw_customers":   "olist_customers_dataset.csv",  
+THELOOK_TABLES = {
+    "order_items":"bigquery-public-data.thelook_ecommerce.order_items",
+    "orders": "bigquery-public-data.thelook_ecommerce.orders",
+    "products": "bigquery-public-data.thelook_ecommerce.products",
+    "users": "bigquery-public-data.thelook_ecommerce.users",
+    "distribution_centers": "bigquery-public-data.thelook_ecommerce.distribution_centers", 
+    "inventory_items": "bigquery-public-data.thelook_ecommerce.inventory_items"
 }
 
-def download_data():
-    
-    all_exist = all(
-        (DATA_DIR / filename).exists()
-        for filename in TABLES.values()
+def export_to_gcs():
+    print("Exporting TheLook tables to GCS...")
+    client = bigquery.Client.from_service_account_json(
+        str(CREDENTIALS),
+        project=PROJECT_ID
     )
+    gcs_client = storage.Client.from_service_account_json(str(CREDENTIALS))
+    bucket = gcs_client.bucket(GCS_BUCKET)
 
-    if all_exist:
-        print("Data already downloaded, skipping...\n")
-        return
+    for table_name, full_table_id in THELOOK_TABLES.items():
+        destination = f"gs://{GCS_BUCKET}/raw/thelook_{table_name}/*.csv"
+        prefix      = f"raw/thelook_{table_name}/"
+        blobs       = list(bucket.list_blobs(prefix=prefix))
 
-    
-    print("Downloading Olist dataset from Kaggle...")
-    DATA_DIR.mkdir(exist_ok=True)
-    kaggle.api.dataset_download_files(
-        DATASET,
-        path=DATA_DIR,
-        unzip=True
-    )
-    print("Download complete\n")
+        if blobs:
+            print(f"Skipping {table_name} — already in GCS")
+            continue
 
-def verify_files():
-    print("Verifying CSV files...")
-    all_good = True
-    for table, filename in TABLES.items():
-        path = DATA_DIR / filename
-        if path.exists():
-            print(f" {filename}")
-        else:
-            print(f" MISSING: {filename}")
-            all_good = False
+        print(f"Exporting {table_name}...")
+        extract_job = client.extract_table(
+            full_table_id,
+            destination,
+            job_config=bigquery.ExtractJobConfig(
+                destination_format="CSV",
+                print_header=True
+            )
+        )
+        extract_job.result()
+        print(f"{table_name} → {destination}")
     print()
-    return all_good
-
-
-def create_bucket_if_not_exists():
-    print("Checking GCS bucket")
-    client = storage.Client.from_service_account_json(str(CREDENTIALS))
-    
-    bucket = client.lookup_bucket(GCS_BUCKET)
-    if bucket is None:
-        bucket = client.create_bucket(GCS_BUCKET, location="asia-south1")
-        print(f"Created bucket: gs://{GCS_BUCKET}\n")
-    else:
-        print(f"Bucket already exists: gs://{GCS_BUCKET}\n") 
-
-def upload_to_gcs():
-    print("Checking GCS for existing files...")
-    client = storage.Client.from_service_account_json(str(CREDENTIALS))
-    bucket = client.bucket(GCS_BUCKET)
-
-    all_exist = all(
-        bucket.blob(f"raw/{filename}").exists()
-        for filename in TABLES.values()
-    )
-
-    if all_exist:
-        print("All files already in GCS, skipping upload...\n")
-        return
-
-    print("Uploading CSVs to GCS...")
-    for table, filename in TABLES.items():
-        source_path = DATA_DIR / filename
-        destination = f"raw/{filename}"
-        blob = bucket.blob(destination)
-
-        if blob.exists():
-            print(f"  ⏭️  Skipping {filename} — already in GCS")
-        else:
-            blob.upload_from_filename(str(source_path))
-            print(f"  ✅ {filename} → gs://{GCS_BUCKET}/{destination}")
-    print()
-
-"""def cleanup_local():
-    print("Cleaning up local data folder...")
-    for file in DATA_DIR.iterdir():
-        if file.is_file():
-            file.unlink()
-            print(f"Deleted {file.name}")
-    print()"""
 
 def create_bruin_assets():
     print("Creating Bruin raw assets...")
-    
     assets_dir = Path("./assets/raw")
     assets_dir.mkdir(parents=True, exist_ok=True)
 
-    for table, filename in TABLES.items():
-        asset_content = f"""name: raw.{table}
+    for table_name in THELOOK_TABLES.keys():
+        asset_content = f"""name: raw.{table_name}
 type: ingestr
 connection: bigquery_main
 
 parameters:
   source_connection: gcs_main
-  source_table: gs://{GCS_BUCKET}/raw/{filename}
+  source_table: gs://{GCS_BUCKET}/raw/thelook_{table_name}/*.csv
   destination: bigquery_main
-  destination_table: return_analysis_raw.{table}
+  destination_table: return_analysis_raw.{table_name}
 """
-        asset_path = assets_dir / f"{table}.asset.yml"
-        
+        asset_path = assets_dir / f"{table_name}.asset.yml"
         if asset_path.exists():
-            print(f"Skipping {table}.asset.yml — already exists")
+            print(f" Skipping {table_name}.asset.yml — already exists")
         else:
             asset_path.write_text(asset_content)
-            print(f"Created assets/raw/{table}.asset.yml")
-    
+            print(f" Created assets/raw/{table_name}.asset.yml")
+    print()
+
+def create_bq_datasets():
+    print("Creating BigQuery datasets...")
+    client = bigquery.Client.from_service_account_json(
+        str(CREDENTIALS),
+        project=PROJECT_ID
+    )
+
+    datasets = ["staging", "mart"]
+
+    for dataset_name in datasets:
+        dataset_id = f"{PROJECT_ID}.{dataset_name}"
+        dataset = bigquery.Dataset(dataset_id)
+        dataset.location = "asia-south1"
+
+        try:
+            client.create_dataset(dataset, exists_ok=True)
+            print(f" Dataset {dataset_name} ready")
+        except Exception as e:
+            print(f"Error creating {dataset_name}: {e}")
     print()
 
 if __name__ == "__main__":
     print("Return Analysis — Data Ingestion\n")
-    download_data()
-    if verify_files():
-        create_bucket_if_not_exists() 
-        uploaded =upload_to_gcs()
-        create_bruin_assets() 
-
+    create_bq_datasets()   
+    export_to_gcs()
+    create_bruin_assets()
+    print("Done! TheLook data in GCS, Bruin assets created.")
