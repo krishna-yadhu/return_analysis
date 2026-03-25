@@ -1,9 +1,10 @@
 name: raw.order_items
 type: ingestr
 connection: bigquery_main
-
+depends:
+  - extract.export_to_gcs
 parameters:
   source_connection: gcs_main
   source_table: gs://return-analysis-data/raw/thelook_order_items/*.csv
-  destination: bigquery_main
-  destination_table: return_analysis_raw.order_items
+  destination: bigquery
+  destination_table: raw.order_items

@@ -9,6 +9,10 @@ depends:
     - raw.users
 materialization:
     type: table
+    partition_by: order_month
+    cluster_by:
+      - product_category
+      - customer_country
 @bruin */
 
 SELECT
@@ -28,7 +32,7 @@ SELECT
 
     oi.product_id,
     p.name AS product_name,
-    p.category,
+    p.category as product_category,
     p.brand,
     ROUND(CAST(p.retail_price AS FLOAT64), 2) AS retail_price,
     ROUND(CAST(oi.sale_price AS FLOAT64), 2) AS sale_price,
@@ -36,13 +40,13 @@ SELECT
     oi.user_id,
     u.first_name,
     u.last_name,
-    u.city,
-    u.country,
+    u.city as customer_city,
+    u.country as customer_country,
     u.gender,
 
     CAST(o.created_at AS TIMESTAMP) AS order_date,
     CAST(o.returned_at AS TIMESTAMP) AS returned_date,
-    DATE_TRUNC(CAST(o.created_at AS TIMESTAMP), MONTH) AS order_month
+    DATE(DATE_TRUNC(CAST(o.created_at AS TIMESTAMP), MONTH)) AS order_month
 
 FROM `return-analysis-490800.raw.order_items` oi
 LEFT JOIN `return-analysis-490800.raw.orders` o

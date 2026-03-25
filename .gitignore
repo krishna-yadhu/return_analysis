@@ -7,6 +7,9 @@ wheels/
 *.egg-info
 credentials/
 data/
+.codex/
+.vscode/
+main.py
 
 # Virtual environments
 .venv
@@ -17,3 +20,4 @@ data/
 logs/runs
 logs/*.log
 *.py[cod]
+*.json
