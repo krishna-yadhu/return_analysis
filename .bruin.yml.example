@@ -1,0 +1,15 @@
+default_environment: default
+environments:
+  default:
+    connections:
+      google_cloud_platform:
+        - name: bigquery_main
+          project_id: your-gcp-project-id
+          location: "your location"
+          service_account_file: ./credentials/gcp_key.json
+
+      gcs:
+        - name: gcs_main
+          project_id: your-gcp-project-id
+          location: "your location"
+          service_account_file: ./credentials/gcp_key.json

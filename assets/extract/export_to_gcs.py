@@ -8,7 +8,7 @@ from pathlib import Path
 
 PROJECT_ID  = "return-analysis-490800"
 GCS_BUCKET  = "return-analysis-data"
-CREDENTIALS = Path("./credentials/return-analysis-490800-9f8a54f16dfd.json")
+CREDENTIALS = Path("./credentials/gcp_key.json")
 
 THELOOK_TABLES = {
     "order_items":          "bigquery-public-data.thelook_ecommerce.order_items",
