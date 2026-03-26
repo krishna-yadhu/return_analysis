@@ -1,0 +1,5 @@
+project_id       = "your-gcp-project-id"
+region           = "your-region"
+location         = "your-region"
+bucket_name      = "return-analysis-data"
+credentials_file = "../credentials/gcp_key.json"
