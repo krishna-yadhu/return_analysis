@@ -136,12 +136,13 @@ The dashboard is built on top of the mart tables in BigQuery and answers:
 
 ### Prerequisites
 
-- GCP project
-- BigQuery enabled
-- GCS bucket
-- Service account JSON key
-- Bruin CLI installed
-- Python environment with project dependencies
+- A GCP project with BigQuery and Cloud Storage enabled
+- A service account JSON key placed at `credentials/gcp_key.json`
+- Bruin CLI installed - [Install Bruin
+](https://getbruin.com/docs/bruin/getting-started/introduction/installation.html)
+- Terraform installed - [Install Terraform](https://developer.hashicorp.com/terraform/install)
+- Python environment and project dependencies installed via `uv`
+
 
 ### Provision Cloud Resources With Terraform
 
@@ -166,8 +167,7 @@ This creates the storage bucket and BigQuery datasets used by the pipeline.
 
 ### Connections
 
-Bruin connections should be created from [`.bruin.yml.example`](/home/wounded-healer/projects/Zoomcamp_returns/.bruin.yml.example).
-
+Bruin connections should be created from [`.bruin.yml.example`]
 Create your local Bruin config:
 
 ```bash
