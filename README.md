@@ -30,7 +30,7 @@ Data flow:
 
 1. Public BigQuery tables are exported to GCS using a Python Bruin asset.
 2. Raw CSV files in GCS are loaded into BigQuery raw tables using Bruin `ingestr` assets.
-3. A staging table enriches order items with order, product, and user attributes.
+3. A staging table enriches order items with orders, products, and users.
 4. Mart tables are built for reporting and dashboarding.
 5. Looker Studio reads from the mart layer.
 
@@ -60,6 +60,8 @@ assets/
     top_returning_customers.sql
 pipeline.yml
 .bruin.yml.example
+terraform/
+dashboard/
 ```
 
 ## Pipeline Layers
@@ -80,7 +82,7 @@ Raw assets load GCS CSVs into BigQuery:
 - `raw.products`
 - `raw.users`
 
-These assets depend on the extract step so the export runs before the raw loads.
+These assets depend on the extract step, so the export runs before the raw loads.
 
 ### Staging
 
@@ -113,7 +115,6 @@ The mart layer contains business-facing aggregates:
 ## Dashboard
 
 Looker Studio dashboard:
-
 https://lookerstudio.google.com/s/rkTZJjZMx40
 
 The dashboard is built on top of the mart tables in BigQuery and answers:
@@ -123,6 +124,21 @@ The dashboard is built on top of the mart tables in BigQuery and answers:
 - Which products drive the highest lost revenue
 - Which customers have unusually high return behavior
 
+A PDF export is also included in:
+- `dashboard/Returns_Overview.pdf`
+
+## Bruin AI Analyst Exploration
+
+Bruin AI analyst was used to explore the final mart tables and generate business-facing insights from the pipeline output.
+
+Example analysis performed:
+- Return rate changes over time
+- Category comparison: return rate vs revenue loss
+- Top business insights and recommended actions
+
+Artifacts:
+- Bruin AI analysis screenshots are included in `bruin_analysis/`
+
 ## Tech Stack
 
 - Orchestration: Bruin
@@ -130,6 +146,7 @@ The dashboard is built on top of the mart tables in BigQuery and answers:
 - Data warehouse: BigQuery
 - Transformation: SQL in Bruin assets
 - Programming language: Python
+- Infrastructure as Code: Terraform
 - Visualization: Looker Studio
 
 ## Reproducibility
@@ -137,17 +154,14 @@ The dashboard is built on top of the mart tables in BigQuery and answers:
 ### Prerequisites
 
 - A GCP project with BigQuery and Cloud Storage enabled
-- A service account JSON key placed at `credentials/gcp_key.json`
-- Bruin CLI installed - [Install Bruin
-](https://getbruin.com/docs/bruin/getting-started/introduction/installation.html)
-- Terraform installed - [Install Terraform](https://developer.hashicorp.com/terraform/install)
+- Your own service account JSON key placed at `credentials/gcp_key.json`
+- Bruin CLI installed: [Install Bruin](https://getbruin.com/docs/bruin/getting-started/introduction/installation.html)
+- Terraform installed: [Install Terraform](https://developer.hashicorp.com/terraform/install)
 - Python environment and project dependencies installed via `uv`
 
-
-### Provision Cloud Resources With Terraform
+### 1. Provision Cloud Resources With Terraform
 
 Terraform provisions:
-
 - GCS bucket: `return-analysis-data`
 - BigQuery datasets: `raw`, `staging`, `mart`
 
@@ -156,37 +170,47 @@ Run:
 ```bash
 cd terraform
 cp terraform.tfvars.example terraform.tfvars
+```
+
+Then update `terraform.tfvars` with your own:
+- `project_id`
+- `region`
+- `location`
+- `bucket_name`
+- `credentials_file`
+
+Apply Terraform:
+
+```bash
 terraform init
 terraform plan
 terraform apply
 ```
 
-Then update `terraform.tfvars` with your own GCP project, region, bucket, and credentials path.
+### 2. Configure Bruin Connections
 
-This creates the storage bucket and BigQuery datasets used by the pipeline.
-
-### Connections
-
-Bruin connections should be created from [`.bruin.yml.example`]
-Create your local Bruin config:
+Create your local Bruin config from [`.bruin.yml.example`](/home/wounded-healer/projects/Zoomcamp_returns/.bruin.yml.example)
 
 ```bash
 cp .bruin.yml.example .bruin.yml
 ```
 
-Then update `.bruin.yml` with your own project ID, location, and local credentials path.
+Then update `.bruin.yml` with your own:
+- GCP project ID
+- location
+- local credentials path
 
-Current connections:
+Current connection names:
 - `bigquery_main`
 - `gcs_main`
 
-### Install Dependencies
+### 3. Install Python Dependencies
 
 ```bash
 uv sync
 ```
 
-### Run The Full Pipeline
+### 4. Run The Full Pipeline
 
 ```bash
 bruin run . --full-refresh
@@ -194,7 +218,7 @@ bruin run . --full-refresh
 
 This performs a full reload of the pipeline for the run.
 
-### Validate The Pipeline
+### 5. Validate The Pipeline
 
 ```bash
 bruin validate
@@ -221,9 +245,4 @@ BigQuery datasets/tables:
 - Partitioning and clustering in BigQuery
 - Automated orchestration with Bruin
 - BI reporting with Looker Studio
-
-## Future Improvements
-
-- Add data quality checks for nulls, duplicates, and schema expectations
-- Make the export step idempotent with explicit overwrite behavior in GCS
-- Add parameterized environments for dev and prod
+- Infrastructure provisioning with Terraform
